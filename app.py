@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from transformers import pipeline
 from flask_cors import CORS
 import requests
 import os
@@ -13,13 +12,10 @@ app.logger.info('Starting Flask app...')
 # Restrict CORS to Netlify frontend (update with your Netlify URL)
 CORS(app, resources={r"/api/*": {"origins": ["https://your-ssc-app.netlify.app", "http://localhost:3000"]}})
 
-# Initialize Hugging Face pipelines
-try:
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    quiz_generator = pipeline("text-generation", model="distilgpt2")
-except Exception as e:
-    app.logger.error(f"Failed to initialize Hugging Face pipelines: {str(e)}")
-    raise
+# Hugging Face Inference API configuration
+HF_API_TOKEN = os.environ.get('HF_API_TOKEN')  # Set in Render environment variables
+SUMMARIZATION_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+QUIZ_GEN_URL = "https://api-inference.huggingface.co/models/distilgpt2"
 
 # Mock news data (replace with NewsAPI.org in production)
 mock_news = [
@@ -74,9 +70,13 @@ def summarize():
         app.logger.warning('No text provided for summarization')
         return jsonify({"error": "No text provided"}), 400
     try:
-        summary = summarizer(text, max_length=100, min_length=30, do_sample=False)
+        headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+        payload = {"inputs": text, "parameters": {"max_length": 100, "min_length": 30}}
+        response = requests.post(SUMMARIZATION_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        summary = response.json()[0]['summary_text']
         app.logger.info('Summarization successful')
-        return jsonify({"summary": summary[0]['summary_text']})
+        return jsonify({"summary": summary})
     except Exception as e:
         app.logger.error(f"Summarization failed: {str(e)}")
         return jsonify({"error": f"Summarization failed: {str(e)}"}), 500
@@ -89,9 +89,12 @@ def generate_quiz():
         app.logger.warning('No text provided for quiz generation')
         return jsonify({"error": "No text provided"}), 400
     try:
+        headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
         prompt = f"Create a multiple-choice question based on: {text[:200]}"
-        quiz = quiz_generator(prompt, max_length=150, num_return_sequences=1)
-        question = quiz[0]['generated_text'].split('\n')[0]
+        payload = {"inputs": prompt, "parameters": {"max_length": 150}}
+        response = requests.post(QUIZ_GEN_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        question = response.json()[0]['generated_text'].split('\n')[0]
         options = ["Option 1", "Option 2", "Option 3", "Option 4"]  # Mock options
         app.logger.info('Quiz generation successful')
         return jsonify({"question": question, "options": options, "answer": options[0]})
