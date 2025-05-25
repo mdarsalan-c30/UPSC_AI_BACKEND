@@ -33,7 +33,9 @@ mock_news = [
 def get_news():
     # For production, integrate NewsAPI.org
     """
-    api_key = "YOUR_NEWSAPI_KEY"
+    api_key = os.environ.get('NEWSAPI_KEY')
+    if not api_key:
+        return jsonify({"error": "NewsAPI key not configured"}), 500
     url = f"https://newsapi.org/v2/everything?q=india+ssc&apiKey={api_key}"
     response = requests.get(url)
     articles = response.json()['articles']
