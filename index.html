@@ -13,20 +13,56 @@
 </head>
 <body class="bg-gray-100 font-sans">
     <h1>hum live hain yrr</h1>
-    <h2>kuch nhi arha data :(((</h2>
     <div id="root" class="container mx-auto p-4"></div>
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, Component } = React;
+
+        // Error Boundary Component
+        class ErrorBoundary extends Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="text-red-500 p-4">
+                            <h2>Something went wrong!</h2>
+                            <p>{this.state.error.toString()}</p>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
         const App = () => {
             const [news, setNews] = useState([]);
             const [notes, setNotes] = useState('');
             const [quiz, setQuiz] = useState([]);
-            useEffect(() => {
-                fetch('https://ssc-backend.onrender.com/api/news')
-                    .then(res => res.json())
-                    .then(data => setNews(data))
-                    .catch(err => console.error('Error fetching news:', err));
-                const ctx = document.getElementById('trends-chart')?.getContext('2d');
+            const [error, setError] = useState(null);
+
+            useEffect(function() {
+                setError(null);
+                fetch('https://upsc-ai-backend-wdi1.onrender.com/api/news', { mode: 'cors' })
+                    .then(function(res) {
+                        if (!res.ok) throw new Error('HTTP error! Status: ' + res.status);
+                        return res.json();
+                    })
+                    .then(function(data) {
+                        console.log('News data:', data);
+                        setNews(data);
+                    })
+                    .catch(function(err) {
+                        console.error('Error fetching news:', err);
+                        setError('Failed to load news. Please try again later.');
+                    });
+
+                var trendsChart = document.getElementById('trends-chart');
+                var ctx = trendsChart && trendsChart.getContext('2d');
                 if (ctx) {
                     new Chart(ctx, {
                         type: 'bar',
@@ -44,115 +80,137 @@
                     });
                 }
             }, []);
-            const summarizeNews = (text) => {
-                fetch('https://ssc-backend.onrender.com/api/summarize', {
+
+            function summarizeNews(text) {
+                fetch('https://upsc-ai-backend-wdi1.onrender.com/api/summarize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
+                    body: JSON.stringify({ text: text })
                 })
-                    .then(res => res.json())
-                    .then(data => {
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
                         if (data.error) alert('Error: ' + data.error);
                         else alert('Summary: ' + data.summary);
                     })
-                    .catch(err => console.error('Error summarizing:', err));
-            };
-            const generateQuiz = (text) => {
-                fetch('https://ssc-backend.onrender.com/api/quiz', {
+                    .catch(function(err) { console.error('Error summarizing:', err); });
+            }
+
+            function generateQuiz(text) {
+                fetch('https://upsc-ai-backend-wdi1.onrender.com/api/quiz', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
+                    body: JSON.stringify({ text: text })
                 })
-                    .then(res => res.json())
-                    .then(data => {
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
                         if (data.error) alert('Error: ' + data.error);
                         else setQuiz([data]);
                     })
-                    .catch(err => console.error('Error generating quiz:', err));
-            };
-            const saveNotes = () => {
-                const element = document.createElement('div');
-                element.innerHTML = `<h1>SSC Notes</h1><pre>${notes}</pre>`;
+                    .catch(function(err) { console.error('Error generating quiz:', err); });
+            }
+
+            function saveNotes() {
+                var element = document.createElement('div');
+                element.innerHTML = '<h1>SSC Notes</h1><pre>' + notes + '</pre>';
                 html2pdf().from(element).save('ssc_notes.pdf');
-            };
-            const shareNotes = () => {
-                const shareUrl = `https://example.com/share?notes=${encodeURIComponent(notes)}`;
-                navigator.clipboard.writeText(shareUrl).then(() => alert('Shareable URL copied to clipboard!'));
-            };
+            }
+
+            function shareNotes() {
+                var shareUrl = 'https://example.com/share?notes=' + encodeURIComponent(notes);
+                navigator.clipboard.writeText(shareUrl).then(function() {
+                    alert('Shareable URL copied to clipboard!');
+                });
+            }
+
             return (
-                <div>
-                    <h1 className="text-3xl font-bold text-center mb-6">SSC Exam Knowledge Helper</h1>
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-semibold mb-4">Latest Current Affairs</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {news.map((item, index) => (
-                                <div key={index} className="bg-white p-4 rounded shadow">
-                                    <h3 className="text-xl font-bold">{item.title}</h3>
-                                    <p className="text-gray-600">{item.content}</p>
-                                    <p className="text-sm text-gray-400">Source: {item.source} | {item.date}</p>
-                                    <button
-                                        onClick={() => summarizeNews(item.content)}
-                                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                                    >
-                                        Summarize
-                                    </button>
-                                    <button
-                                        onClick={() => generateQuiz(item.content)}
-                                        className="mt-2 ml-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                                    >
-                                        Generate Quiz
-                                    </button>
-                                </div>
-                            ))}
+                <ErrorBoundary>
+                    <div>
+                        <h1 className="text-3xl font-bold text-center mb-6">SSC Exam Knowledge Helper</h1>
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-semibold mb-4">Latest Current Affairs</h2>
+                            {error && <p className="text-red-500">{error}</p>}
+                            {news.length === 0 && !error && <p>Loading news...</p>}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {news.map(function(item, index) {
+                                    return (
+                                        <div key={index} className="bg-white p-4 rounded shadow">
+                                            <h3 className="text-xl font-bold">{item.title}</h3>
+                                            <p className="text-gray-600">{item.content}</p>
+                                            <p className="text-sm text-gray-400">Source: {item.source} | {item.date}</p>
+                                            <button
+                                                onClick={function() { summarizeNews(item.content); }}
+                                                className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                            >
+                                                Summarize
+                                            </button>
+                                            <button
+                                                onClick={function() { generateQuiz(item.content); }}
+                                                className="mt-2 ml-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                            >
+                                                Generate Quiz
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    </div>
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-semibold mb-4">Trends in Current Affairs</h2>
-                        <canvas id="trends-chart" className="w-full h-64"></canvas>
-                    </div>
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-semibold mb-4">Daily Quiz</h2>
-                        <div id="quiz-container" className="bg-white p-4 rounded shadow">
-                            {quiz.map((q, i) => (
-                                <div key={i} className="mb-4">
-                                    <p className="font-semibold">{i + 1}. {q.question}</p>
-                                    {q.options.map((opt, j) => (
-                                        <label key={j} className="block">
-                                            <input type="radio" name={`q${i}`} value={opt} className="mr-2" /> {opt}
-                                        </label>
-                                    ))}
-                                </div>
-                            ))}
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-semibold mb-4">Trends in Current Affairs</h2>
+                            <canvas id="trends-chart" className="w-full h-64"></canvas>
                         </div>
-                        <button
-                            onClick={() => generateQuiz(news[0]?.content || '')}
-                            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                        >
-                            Generate New Quiz
-                        </button>
-                    </div>
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-semibold mb-4">Your Notes</h2>
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            className="w-full h-32 p-2 border rounded"
-                            placeholder="Write your notes here..."
-                        ></textarea>
-                        <div className="flex space-x-4 mt-2">
-                            <button onClick={saveNotes} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
-                                Save as PDF
-                            </button>
-                            <button onClick={shareNotes} className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
-                                Share Notes
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-semibold mb-4">Daily Quiz</h2>
+                            <div id="quiz-container" className="bg-white p-4 rounded shadow">
+                                {quiz.map(function(q, i) {
+                                    return (
+                                        <div key={i} className="mb-4">
+                                            <p className="font-semibold">{i + 1}. {q.question}</p>
+                                            {q.options.map(function(opt, j) {
+                                                return (
+                                                    <label key={j} className="block">
+                                                        <input type="radio" name={'q' + i} value={opt} className="mr-2" /> {opt}
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <button
+                                onClick={function() { generateQuiz(news.length > 0 ? news[0].content : ''); }}
+                                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                            >
+                                Generate New Quiz
                             </button>
                         </div>
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-semibold mb-4">Your Notes</h2>
+                            <textarea
+                                value={notes}
+                                onChange={function(e) { setNotes(e.target.value); }}
+                                className="w-full h-32 p-2 border rounded"
+                                placeholder="Write your notes here..."
+                            ></textarea>
+                            <div className="flex space-x-4 mt-2">
+                                <button onClick={saveNotes} className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                                    Save as PDF
+                                </button>
+                                <button onClick={shareNotes} className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                                    Share Notes
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </ErrorBoundary>
             );
         };
-        ReactDOM.render(<App />, document.getElementById('root'));
+
+        try {
+            ReactDOM.render(<App />, document.getElementById('root'));
+        } catch (e) {
+            console.error('Error rendering React app:', e);
+            document.getElementById('root').innerHTML = '<p class="text-red-500">Failed to load app. Please try again later.</p>';
+        }
     </script>
-    
 </body>
 </html>
