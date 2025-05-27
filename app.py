@@ -39,7 +39,7 @@ def home():
 def get_news():
     app.logger.info('Fetching news...')
     # For production, integrate NewsAPI.org
-    """
+   
     api_key = os.environ.get('NEWSAPI_KEY')
     if not api_key:
         app.logger.error('NewsAPI key not configured')
@@ -61,7 +61,7 @@ def get_news():
     except Exception as e:
         app.logger.error(f"NewsAPI request failed: {str(e)}")
         return jsonify({"error": f"Failed to fetch news: {str(e)}"}), 500
-    """
+ 
     return jsonify(mock_news)
 
 @app.route('/api/summarize', methods=['POST'])
